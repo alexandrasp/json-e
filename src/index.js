@@ -210,10 +210,6 @@ operators.$reverse = (template, context) => {
   if (!isArray(value) && !isArray(template['$reverse'])) {
     throw new TemplateError('$reverse value must evaluate to an array of objects');
   }
-
-  if (!isArray(value)) {
-    throw new TemplateError('$reverse requires array as value');
-  }
   return value.reverse();
 };
 
