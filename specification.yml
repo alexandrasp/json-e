@@ -103,7 +103,7 @@ result:   '3, really 3.75'
 title:    nulls interpolate
 context:  {nothing: null}
 template: 'big pile of ${nothing}'
-result:   'big pile of null'
+result:   'big pile of '
 ---
 title: invalid context
 context: {'a b c': 1}
@@ -262,6 +262,11 @@ title:    $if->then evaluating to nothing at the top level is null
 context:  {cond: false}
 template: {$if: 'cond', then: "t"}
 result:   null
+---
+title:    $if-then-else with undefined properties
+context:  {cond: true}
+template: {$if: 'cond', then: 1, foo: 'bar', else: 2, bing: 'baz'}
+error: 'TemplateError: $if has undefined properties: bing foo'
 ################################################################################
 ---
 section:  escape operators
@@ -316,15 +321,15 @@ context:  {}
 template: {$$sort: [3, 2, 1]}
 result:   {$sort: [3, 2, 1]}
 ---
-title:    interpolate non-json-e operator
+title:    reserved $-keywords
 context:  {}
 template: {$nothing: 1}
-result:   {$nothing: 1}
+error:    'TemplateError: $<identifier> is reserved; ues $$<identifier>'
 ---
 title:    escape non-json-e operator
 context:  {}
 template: {$$nothing: 1}
-result:   {$$nothing: 1}
+result:   {$nothing: 1}
 ################################################################################
 ---
 section:  $flatten
@@ -378,6 +383,11 @@ title:    flatten mixed levels
 context:  {}
 template: {$flatten: [[1, [2, 3]], [4], 5]}
 result:   [1, [2, 3], 4, 5]
+---
+title:    flatten with undefined properties
+context:  {}
+template: {$flatten: {$eval: '[[1], [2, 3]]'}, foo: 'bar'}
+error: 'TemplateError: $flatten has undefined properties: foo'
 ################################################################################
 ---
 section:  $flattenDeep
@@ -431,6 +441,11 @@ title:    flattenDeep mixed levels
 context:  {}
 template: {$flattenDeep: [[1, [2, 3]], [4], 5]}
 result:   [1, 2, 3, 4, 5]
+---
+title:    flattenDeep with undefined properties
+context:  {}
+template: {$flattenDeep: [[1, [2, 3]], [4], 5], foo: 'bar'}
+error: 'TemplateError: $flattenDeep has undefined properties: foo'
 ################################################################################
 ---
 section:  fromNow
@@ -544,6 +559,11 @@ title:    fromNow with reference
 context:  {now: '2019-01-01T01:00:00.123Z'}
 template: {$fromNow: '3 mo', from: {$eval: now}}
 result:   '2019-04-01T01:00:00.123Z'
+---
+title:    fromNow with undefined properties
+context:  {now: '2019-01-01T01:00:00.123Z'}
+template: {$fromNow: '3 mo', from: {$eval: now}, foo: 'bar'}
+error: 'TemplateError: $fromNow has undefined properties: foo'
 ################################################################################
 ---
 section:  $json
@@ -562,6 +582,11 @@ title:    $eval inside array
 context:  {a: 1, b: 2}
 template: {$json: [2, 5, {$eval: 'a + b + 7'}]}
 result:   '[2,5,10]'
+---
+title:    $json with undefined properties
+context:  {}
+template: {$json: [1,2,true,{},[]], foo: 'bar'}
+error: 'TemplateError: $json has undefined properties: foo'
 ################################################################################
 ---
 section: accessing nested objects => context
@@ -580,6 +605,16 @@ title: string interpolation
 context: {key: {key2: 'world', key3: 1}}
 template: {message: 'hello ${key.key2}', 'k-${key.key3}': true}
 result:   {message: 'hello world', 'k-1': true}
+---
+title: string interpolation, first character
+context: {somevalue: 13}
+template: {message: '${somevalue}'}
+result:   {message: '13'}
+---
+title: no string interpolation with $$
+context: {somevalue: 13}
+template: {message: '$${somevalue}'}
+result:   {message: '${somevalue}'}
 ################################################################################
 ---
 section: $let
@@ -609,10 +644,10 @@ template: {$let: {x: 20, y: 10}, in: {$let: {x: 30}, in: {$eval: "x + y + z"}}}
 context:  {x: 1, y: 2, z: 3}
 result:   43
 ---
-title:    let without in
+title:    let with undefined properties
 template: {$let: {x: 1, y: 2}, a: {$eval: "x + y"}}
 context:  {}
-error:    'TemplateError: $let operator requires an `in` clause'
+error:    'TemplateError: $let has undefined properties: a'
 ---
 title:    let array
 template: {$let: [1, 2], in: {$eval: "1 + 2"}}
@@ -732,6 +767,14 @@ template:
   $map: null
   each(y): {$eval: 'y.k'}
 error: 'TemplateError: $map value must evaluate to an array or object'
+---
+title:    map with undefined properties
+context:  {a: 1}
+template:
+  $map: [2, 4, 6]
+  each(x): {$eval: 'x + a'}
+  foo: 'bar'
+error: 'TemplateError: $map has undefined properties: foo'
 ################################################################################
 ---
 section:  $merge
@@ -765,6 +808,11 @@ title: $merge [null]
 template: {$merge: [null]}
 context: {}
 error: 'TemplateError: $merge value must evaluate to an array of objects'
+---
+title: merge with undefined properties
+template: {$merge: [{a: 1}, {b: 2, c: 3}, {d: 4}], foo: "bar", bing: "baz"}
+context: {}
+error: 'TemplateError: $merge has undefined properties: bing foo'
 ################################################################################
 ---
 section:  $mergeDeep
@@ -828,6 +876,11 @@ title: $mergeDeep [null]
 template: {$mergeDeep: [null]}
 context: {}
 error: 'TemplateError: $mergeDeep value must evaluate to an array of objects'
+---
+title: mergeDeep with undefined properties
+template: {$mergeDeep: [{a: {x: 1, y: 2}}, {a: {y: 3, z: 4}}], foo: "bar", bing: "baz"}
+context: {}
+error: 'TemplateError: $mergeDeep has undefined properties: bing foo'
 ################################################################################
 ---
 section:  $sort
@@ -950,6 +1003,14 @@ context:  {}
 template:
   $sort:  null
 error: true  # $sort must be given an array
+---
+title:    sort with undefined properties
+context:  {}
+template:
+  $sort: [{s: 'android'}, {s: 'add'}, {s: 'adderall'}]
+  by(x): 'x.s'
+  foo:   'bar'
+error: 'TemplateError: $sort has undefined properties: foo'
 ################################################################################
 ---
 section:  $reverse
@@ -998,6 +1059,11 @@ title:    simple reverse + $sort # with this we can sort in reverse order
 context:  {}
 template: {$reverse: {$sort: [3, 4, 1, 2]}}
 result:   [4, 3, 2, 1]
+---
+title: reverse with undefined properties
+template: {$reverse: [3, 4, 1, 2], foo: "bar", bing: "baz"}
+context: {}
+error: 'TemplateError: $reverse has undefined properties: bing foo'
 ################################################################################
 ---
 section: $eval
@@ -1495,7 +1561,7 @@ context: {}
 template: {$eval: 'str(true)'}
 result: 'true'
 ---
-title: str (6)
+title: str (key) with null
 context: {x: null}
 template: {$eval: 'str(x)'}
 result: 'null'
@@ -1510,15 +1576,25 @@ context: {}
 template: {$eval: 'str(false)'}
 result: 'false'
 ---
-title: str (9)
-context: {key: [1, 2, 3]}
-template: {$eval: 'str(key)'}
-result: '1,2,3'
+title: str({})
+context: {}
+template: {$eval: 'str({})'}
+error: 'BuiltinError: invalid arguments to builtin: str'
 ---
-title: str (10)
+title: str({a:10})
+context: {}
+template: {$eval: 'str({a:10})'}
+error: 'BuiltinError: invalid arguments to builtin: str'
+---
+title: str([1, 2, 3])
 context: {}
 template: {$eval: 'str([1, 2, 3])'}
-result: '1,2,3'
+error: 'BuiltinError: invalid arguments to builtin: str'
+---
+title: str(key) with array
+context: {key: [1, 2, 3]}
+template: {$eval: 'str(key)'}
+error: 'BuiltinError: invalid arguments to builtin: str'
 ---
 title: strip space
 context: {}

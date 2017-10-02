@@ -9,6 +9,19 @@ var {
 var addBuiltins = require('./builtins');
 var {JSONTemplateError, TemplateError} = require('./error');
 
+function checkUndefinedProperties(template, allowed) {
+  var unknownKeys = '';
+  var combined = new RegExp(allowed.join('|') + '$');
+  for (var key of Object.keys(template).sort()) {
+    if (!combined.test(key)) {
+      unknownKeys += ' ' + key;
+    }
+  }
+  if (unknownKeys) {
+    throw new TemplateError(allowed[0].replace('\\', '') + ' has undefined properties:' + unknownKeys);
+  }
+};
+
 let flattenDeep = (a) => {
   return Array.isArray(a) ? [].concat(...a.map(flattenDeep)) : a;
 };
@@ -27,9 +40,9 @@ let interpolate = (string, context) => {
         throw new TemplateError(`interpolation of '${input}' produced an array or object`);
       }
 
-      // toString renders null as an empty string, which is not what we want
+      // if it is null, result should just be appended with empty string
       if (v.result === null) {
-        result += 'null';
+        result += '';
       } else {
         result += v.result.toString();
       }
@@ -55,6 +68,8 @@ operators.$eval = (template, context) => {
 };
 
 operators.$flatten = (template, context) => {
+  checkUndefinedProperties(template, ['\\$flatten']);
+
   let value = render(template['$flatten'], context);
 
   if (!isArray(value)) {
@@ -65,6 +80,8 @@ operators.$flatten = (template, context) => {
 };
 
 operators.$flattenDeep = (template, context) => {
+  checkUndefinedProperties(template, ['\\$flattenDeep']);
+
   let value = render(template['$flattenDeep'], context);
 
   if (!isArray(value)) {
@@ -75,6 +92,8 @@ operators.$flattenDeep = (template, context) => {
 };
 
 operators.$fromNow = (template, context) => {
+  checkUndefinedProperties(template, ['\\$fromNow', 'from']);
+
   let value = render(template['$fromNow'], context);
   let reference = context.now;
   if (template['from']) {
@@ -87,6 +106,8 @@ operators.$fromNow = (template, context) => {
 };
 
 operators.$if = (template, context) => {
+  checkUndefinedProperties(template, ['\\$if', 'then', 'else']);
+
   if (!isString(template['$if'])) {
     throw new TemplateError('$if can evaluate string expressions only');
   }
@@ -97,10 +118,14 @@ operators.$if = (template, context) => {
 };
 
 operators.$json = (template, context) => {
+  checkUndefinedProperties(template, ['\\$json']);
+
   return JSON.stringify(render(template['$json'], context));
 };
 
 operators.$let = (template, context) => {
+  checkUndefinedProperties(template, ['\\$let', 'in']);
+
   let variables = render(template['$let'], context);
 
   var context_copy = Object.assign(context, variables);
@@ -108,7 +133,7 @@ operators.$let = (template, context) => {
   if (!isObject(variables)) {
     throw new TemplateError('$let value must evaluate to an object');
   } else {
-    let match = Object.keys(variables).every((variableNames) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.exec(variableNames));
+    let match = Object.keys(variables).every((variableName) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.exec(variableName));
     if (!match) {
       throw new TemplateError('top level keys of $let must follow /[a-zA-Z_][a-zA-Z0-9_]*/');
     }
@@ -122,6 +147,8 @@ operators.$let = (template, context) => {
 };
 
 operators.$map = (template, context) => {
+  EACH_RE = 'each\\(([a-zA-Z_][a-zA-Z0-9_]*)\\)';
+  checkUndefinedProperties(template, ['\\$map', EACH_RE]);
   let value = render(template['$map'], context);
   if (!isArray(value) && !isObject(value)) {
     throw new TemplateError('$map value must evaluate to an array or object');
@@ -157,6 +184,8 @@ operators.$map = (template, context) => {
 };
 
 operators.$merge = (template, context) => {
+  checkUndefinedProperties(template, ['\\$merge']);
+
   let value = render(template['$merge'], context);
 
   if (!isArray(value) || value.some(o => !isObject(o))) {
@@ -167,6 +196,8 @@ operators.$merge = (template, context) => {
 };
 
 operators.$mergeDeep = (template, context) => {
+  checkUndefinedProperties(template, ['\\$mergeDeep']);
+
   let value = render(template['$mergeDeep'], context);
 
   if (!isArray(value) || value.some(o => !isObject(o))) {
@@ -179,7 +210,6 @@ operators.$mergeDeep = (template, context) => {
   // merge two values, preferring the right but concatenating lists and
   // recursively merging objects
   let merge = (l, r) => {
-    console.log(`merge(${JSON.stringify(l)}, ${JSON.stringify(r)})`);
     if (isArray(l) && isArray(r)) {
       return l.concat(r);
     }
@@ -188,7 +218,6 @@ operators.$mergeDeep = (template, context) => {
       for (let p in r) { // eslint-disable-line taskcluster/no-for-in
         if (p in l) {
           res[p] = merge(l[p], r[p]);
-          console.log(`-> ${JSON.stringify(res[p])}`);
         } else {
           res[p] = r[p];
         }
@@ -197,14 +226,13 @@ operators.$mergeDeep = (template, context) => {
     }
     return r;
   };
-  console.log(`merging ${JSON.stringify(value)}`);
   // start with the first element of the list
   return value.reduce(merge, value.shift());
-
-  return Object.assign({}, ...value);
 };
 
 operators.$reverse = (template, context) => {
+  checkUndefinedProperties(template, ['\\$reverse']);
+
   let value = render(template['$reverse'], context);
 
   if (!isArray(value) && !isArray(template['$reverse'])) {
@@ -214,6 +242,8 @@ operators.$reverse = (template, context) => {
 };
 
 operators.$sort = (template, context) => {
+  BY_RE = 'by\\(([a-zA-Z_][a-zA-Z0-9_]*)\\)';
+  checkUndefinedProperties(template, ['\\$sort', BY_RE]);
   let value = render(template['$sort'], context);
   if (!isArray(value)) {
     throw new TemplateError('$sort requires array as value');
@@ -307,11 +337,15 @@ let render = (template, context) => {
       throw err;
     }
     if (value !== deleteMarker) {
-      if (key.startsWith('$$') && operators.hasOwnProperty(key.substr(1))) {
+      if (key.startsWith('$$')) {
         key = key.substr(1);
+      } else if (/^\$[a-zA-Z][a-zA-Z0-9]*$/.test(key)) {
+        throw new TemplateError('$<identifier> is reserved; ues $$<identifier>');
+      } else {
+        key = interpolate(key, context);
       }
 
-      result[interpolate(key, context)] = value;
+      result[key] = value;
     }
   }
   return result;
@@ -322,7 +356,7 @@ module.exports = (template, context = {}) => {
   if (!test) {
     throw new TemplateError('top level keys of context must follow /[a-zA-Z_][a-zA-Z0-9_]*/');
   }
-  context = addBuiltins(Object.assign({}, {now: new Date()}, context));
+  context = addBuiltins(Object.assign({}, {now: fromNow('0 seconds')}, context));
   let result = render(template, context);
   if (result === deleteMarker) {
     return null;
